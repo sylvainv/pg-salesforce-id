@@ -224,6 +224,32 @@ salesforce_id_out_text(PG_FUNCTION_ARGS)
 
 PG_FUNCTION_INFO_V1(salesforce_id_recv);
 
+Datum
+salesforce_id_recv(PG_FUNCTION_ARGS)
+{
+    StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
+    SalesforceId    *result;
+
+    result = (SalesforceId *) palloc(sizeof(SalesforceId));
+    result->prefix = pq_getmsgint(buf,4);
+    result->id = pq_getmsgint64(buf);
+    PG_RETURN_POINTER(result);
+}
+
+PG_FUNCTION_INFO_V1(salesforce_id_send);
+
+Datum
+salesforce_id_send(PG_FUNCTION_ARGS)
+{
+    SalesforceId    *result = (SalesforceId *) PG_GETARG_POINTER(0);
+    StringInfoData buf;
+
+    pq_begintypsend(&buf);
+    pq_sendint(&buf, result->prefix, 4);
+    pq_sendint64(&buf, result->id);
+    PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
+}
+
 PG_FUNCTION_INFO_V1(salesforce_id_eq);
 Datum
 salesforce_id_eq(PG_FUNCTION_ARGS)
