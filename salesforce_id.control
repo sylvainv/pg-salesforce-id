@@ -1,0 +1,4 @@
+# salesforce_id extension
+comment = 'Salesforce id'
+default_version = '1.0'
+relocatable = true
