@@ -71,20 +71,6 @@ unsigned long long parse_character(unsigned long long id, char str_x, int start)
   return id;
 }
 
-char *printBits(unsigned long long a) {
-  char buffer[65];
-  buffer[65 - 1] = '\0';
-
-  buffer += (65 - 1);
-
-  for (int i = 63; i >= 0; i--) {
-    *buffer = (a & 1) + '0';
-    a >>= 1;
-  }
-
-  return buffer;
-}
-
 void parse_salesforce_id(SalesforceId* result, char* str)
 {
   int i;
@@ -158,10 +144,6 @@ void emit_salesforce_id_buf(char* result, SalesforceId* salesforce_id)
   ereport(DEBUG1,
     (errmsg("-> id %llu", salesforce_id->id))
   );
-  ereport(DEBUG1,
-    (errmsg("-> id %s", printBits(50)))
-  );
-  
   int bit = 0;
 	int i;
 
