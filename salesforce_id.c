@@ -14,6 +14,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <limits.h>
 
 #include "fmgr.h"
 #include "utils/builtins.h"
@@ -43,6 +44,7 @@
 #define BF_SET(y, x, start, len) \
               (y=((y) & (~BF_MASK(start, len))) | BF_PREP(x, start, len))
       
+#define HALF_ULLONG_MAX  ULLONG_MAX/2
 
 PG_MODULE_MAGIC;
 
@@ -69,6 +71,20 @@ unsigned long long parse_character(unsigned long long id, char str_x, int start)
   return id;
 }
 
+char *printBits(unsigned long long a) {
+  char buffer[65];
+  buffer[65 - 1] = '\0';
+
+  buffer += (65 - 1);
+
+  for (int i = 63; i >= 0; i--) {
+    *buffer = (a & 1) + '0';
+    a >>= 1;
+  }
+
+  return buffer;
+}
+
 void parse_salesforce_id(SalesforceId* result, char* str)
 {
   int i;
@@ -78,20 +94,20 @@ void parse_salesforce_id(SalesforceId* result, char* str)
   result->prefix = 0ul;
 
   int length = strlen(str);
-  if (length > 18) {
+  if (length != 18) {
     ereport(ERROR,
       (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-        errmsg("Invalid salesforce_id, should be 18 or 15 character long, got %d instead", length))
+        errmsg("Invalid salesforce_id, should be 18 characters long, got %d instead", length))
     );
   }
 
-  for (i=14; i>=5; i--) {
+  for (i=14; i>4; i--) {
     result->id = parse_character(result->id, str[i], bit);
     bit = bit + 6;
   }
 
   bit = 0;
-  for (i=4; i>0; i--) {
+  for (;i>0; i--) {
     result->prefix = parse_character(result->prefix, str[i], bit);
     bit = bit + 6;
   }
@@ -135,12 +151,26 @@ char get_case_sensitive_check_char(char* str)
 
 void emit_salesforce_id_buf(char* result, SalesforceId* salesforce_id)
 {
+  ereport(DEBUG1,
+    (errmsg("-> emit_salesforce_id_buf"))
+  );
+
+  ereport(DEBUG1,
+    (errmsg("-> id %llu", salesforce_id->id))
+  );
+  ereport(DEBUG1,
+    (errmsg("-> id %s", printBits(50)))
+  );
+  
   int bit = 0;
 	int i;
 
 	for (i=14; i>4; i--) {
     result[i] = salesforce_id_alphabet[BF_GET(salesforce_id->id, bit, 6)];
-    bit = bit + 6;    
+    ereport(DEBUG1,
+      (errmsg("CHAR %c %d \n", result[i], BF_GET(salesforce_id->id, bit, 6)))
+    );
+    bit = bit + 6;
   }
 
   bit = 0;
@@ -183,11 +213,13 @@ PG_FUNCTION_INFO_V1(salesforce_id_out);
 Datum
 salesforce_id_out(PG_FUNCTION_ARGS)
 {
+  ereport(DEBUG1,
+    (errmsg("-> salesforce_id_in_text"))
+  );
 	SalesforceId* salesforce_id = (SalesforceId *) PG_GETARG_POINTER(0);
   char* result = (char *) palloc(19);
   
 	emit_salesforce_id_buf(result, salesforce_id);
-
 	PG_RETURN_CSTRING(result);
 }
 
@@ -198,6 +230,9 @@ PG_FUNCTION_INFO_V1(salesforce_id_in_text);
 Datum
 salesforce_id_in_text(PG_FUNCTION_ARGS)
 {
+  ereport(DEBUG1,
+    (errmsg("-> salesforce_id_in_text"))
+  );
 	text* salesforce_id = PG_GETARG_TEXT_PP(0);
   SalesforceId* result = (SalesforceId *) palloc(sizeof(SalesforceId));
   
@@ -213,6 +248,9 @@ PG_FUNCTION_INFO_V1(salesforce_id_out_text);
 Datum
 salesforce_id_out_text(PG_FUNCTION_ARGS)
 {
+  ereport(DEBUG1,
+    (errmsg("-> salesforce_id_out_text"))
+  );
 	SalesforceId* salesforce_id = (SalesforceId *) PG_GETARG_POINTER(0);
   char* xxx = (char *) palloc(19);
   emit_salesforce_id_buf(xxx, salesforce_id);
@@ -220,34 +258,6 @@ salesforce_id_out_text(PG_FUNCTION_ARGS)
 	pfree(xxx);
 	
 	PG_RETURN_TEXT_P(res);
-}
-
-PG_FUNCTION_INFO_V1(salesforce_id_recv);
-
-Datum
-salesforce_id_recv(PG_FUNCTION_ARGS)
-{
-    StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
-    SalesforceId    *result;
-
-    result = (SalesforceId *) palloc(sizeof(SalesforceId));
-    result->prefix = pq_getmsgint(buf,4);
-    result->id = pq_getmsgint64(buf);
-    PG_RETURN_POINTER(result);
-}
-
-PG_FUNCTION_INFO_V1(salesforce_id_send);
-
-Datum
-salesforce_id_send(PG_FUNCTION_ARGS)
-{
-    SalesforceId    *result = (SalesforceId *) PG_GETARG_POINTER(0);
-    StringInfoData buf;
-
-    pq_begintypsend(&buf);
-    pq_sendint(&buf, result->prefix, 4);
-    pq_sendint64(&buf, result->id);
-    PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
 PG_FUNCTION_INFO_V1(salesforce_id_eq);
@@ -338,7 +348,7 @@ btcmp_salesforce_id (PG_FUNCTION_ARGS){
 			PG_RETURN_INT32(1);
 		}
 		else {
-			PG_RETURN_INT32(-1);						
+			PG_RETURN_INT32(-1);		
 		}
 	}
 	else if (id1->prefix == id2->prefix) {
@@ -355,4 +365,16 @@ btcmp_salesforce_id (PG_FUNCTION_ARGS){
 	else {
 		PG_RETURN_INT32(-1);						
 	}
+}
+
+PG_FUNCTION_INFO_V1(hash_salesforce_id);
+Datum
+hash_salesforce_id (PG_FUNCTION_ARGS){
+	SalesforceId    *sfid = (SalesforceId *) PG_GETARG_POINTER(0);
+  uint32 lohalf = (uint32) sfid->id;
+  uint32 hihalf = (uint32) (sfid->id >> 32);
+  
+  lohalf ^= (sfid->id >= HALF_ULLONG_MAX) ? hihalf : ~hihalf;
+  
+  return hash_uint32(lohalf);
 }

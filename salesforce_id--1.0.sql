@@ -19,16 +19,6 @@ CREATE OR REPLACE FUNCTION salesforce_id_out(salesforce_id)
 	AS 'salesforce_id', 'salesforce_id_out'
 	LANGUAGE C STRICT IMMUTABLE;
 
-CREATE OR REPLACE FUNCTION salesforce_id_send(salesforce_id)
-	RETURNS bytea
-	AS 'salesforce_id', 'salesforce_id_send'
-	LANGUAGE C STRICT IMMUTABLE;
-
-CREATE OR REPLACE FUNCTION salesforce_id_recv(internal)
-	RETURNS salesforce_id
-	AS 'salesforce_id', 'salesforce_id_recv'
-	LANGUAGE C STRICT IMMUTABLE;
-
 CREATE OR REPLACE FUNCTION salesforce_id_in_text(text)
 	RETURNS salesforce_id
 	AS 'salesforce_id', 'salesforce_id_in_text'
@@ -42,12 +32,8 @@ CREATE OR REPLACE FUNCTION salesforce_id_out_text(salesforce_id)
 CREATE TYPE salesforce_id (
 	INPUT = salesforce_id_in,
 	OUTPUT = salesforce_id_out,
--- values of internallength, passedbyvalue, alignment, and storage are copied from the named type.
-    INTERNALLENGTH = 12,
-	--SEND = salesforce_id_send,
-	--RECEIVE = salesforce_id_recv,
--- string category, to automatically try string conversion etc
-	CATEGORY = 'S',
+    INTERNALLENGTH = 12, -- values of internallength, passedbyvalue, alignment, and storage are copied from the named type.
+	CATEGORY = 'S', -- string category, to automatically try string conversion etc
 	PREFERRED = false,
 	ALIGNMENT = int4
 );
@@ -87,16 +73,16 @@ CREATE OR REPLACE FUNCTION salesforce_id_gt(salesforce_id, salesforce_id)
 
 CREATE OR REPLACE FUNCTION btcmp_salesforce_id(salesforce_id, salesforce_id)
 	RETURNS int4
-	AS 'btint8cmp'
-	LANGUAGE internal STRICT IMMUTABLE;
+	AS 'salesforce_id', 'btcmp_salesforce_id'
+	LANGUAGE C STRICT IMMUTABLE;
 
 -- this function seems to "hash" the int8 to a much bigger size; eg
 -- 1 => -1905060026
--- CREATE OR REPLACE FUNCTION hash_salesforce_id(salesforce_id)
--- 	RETURNS int4
--- 	AS 'hashint8'
--- 	LANGUAGE internal STRICT IMMUTABLE;
---
+CREATE OR REPLACE FUNCTION hash_salesforce_id(salesforce_id)
+	RETURNS int4
+	AS 'salesforce_id', 'hash_salesforce_id'
+	LANGUAGE C STRICT IMMUTABLE;
+
 --	Now the operators.
 --
 CREATE OPERATOR = (
@@ -172,7 +158,8 @@ DEFAULT FOR TYPE salesforce_id USING btree AS
     -- The hash indexing operator class.
     --
 
--- CREATE OPERATOR CLASS salesforce_id_ops
--- DEFAULT FOR TYPE salesforce_id USING hash AS
---	OPERATOR    1   =  (salesforce_id, salesforce_id),	FUNCTION    1   hash_salesforce_id(salesforce_id);
+CREATE OPERATOR CLASS salesforce_id_ops
+DEFAULT FOR TYPE salesforce_id USING hash AS
+	OPERATOR    1   =  (salesforce_id, salesforce_id),
+	FUNCTION    1   hash_salesforce_id(salesforce_id);
 	
