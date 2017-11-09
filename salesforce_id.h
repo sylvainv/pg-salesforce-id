@@ -27,6 +27,6 @@ typedef struct SalesforceId {
 
 bool parse_character(uint32* id, uint8 str_x, uint8 start);
 char get_case_sensitive_check_char(char* str);
-
+    
 void parse_salesforce_id(SalesforceId *result, char* str);
 void emit_salesforce_id_buf(char* result, SalesforceId* salesforce_id);
