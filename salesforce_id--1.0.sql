@@ -35,7 +35,8 @@ CREATE TYPE salesforce_id (
     INTERNALLENGTH = 12, -- values of internallength, passedbyvalue, alignment, and storage are copied from the named type.
 	CATEGORY = 'S', -- string category, to automatically try string conversion etc
 	PREFERRED = false,
-	ALIGNMENT = int4
+	ALIGNMENT = int4,
+	STORAGE = PLAIN
 );
 
 --

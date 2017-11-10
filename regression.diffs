@@ -1,0 +1,61 @@
+*** /Users/sylvain/Projects/github/pg-salesforce-id/test/expected/salesforce_id_check.out	2017-11-10 12:32:32.000000000 +0800
+--- /Users/sylvain/Projects/github/pg-salesforce-id/results/salesforce_id_check.out	2017-11-10 13:44:19.000000000 +0800
+***************
+*** 38,47 ****
+   zzzzzzzzzzzzzzzAAA
+  (1 row)
+  
+! SELECT plan(1);
+   plan 
+  ------
+!  1..1
+  (1 row)
+  
+  SELECT throws_ok(
+--- 38,47 ----
+   zzzzzzzzzzzzzzzAAA
+  (1 row)
+  
+! SELECT plan(2);
+   plan 
+  ------
+!  1..2
+  (1 row)
+  
+  SELECT throws_ok(
+***************
+*** 50,57 ****
+      'Invalid salesforce_id, should be 18 characters long, got 17 instead',
+      'We should get an error when length is not correct'
+  );
+                          throws_ok                         
+  ----------------------------------------------------------
+!  ok 1 - We should get an error when length is not correct
+  (1 row)
+  
+--- 50,71 ----
+      'Invalid salesforce_id, should be 18 characters long, got 17 instead',
+      'We should get an error when length is not correct'
+  );
++                                             throws_ok                                             
++ --------------------------------------------------------------------------------------------------
++  not ok 1 - We should get an error when length is not correct                                    +
++  # Failed test 1: "We should get an error when length is not correct"                            +
++  #       caught: 22026: Invalid salesforce_id, should be 18 or 15 characters long, got 17 instead+
++  #       wanted: 22026: Invalid salesforce_id, should be 18 characters long, got 17 instead
++ (1 row)
++ 
++ SELECT throws_ok(
++     $$ SELECT 'zzzzzzzzzzzzzzzAAB'::salesforce_id; $$,
++     '22P02',
++     'Salesforce id suffix is used for case sensitive check, it should be "AAA" got "AAB" instead',
++     'We should get an error when length is not correct'
++ );
+                          throws_ok                         
+  ----------------------------------------------------------
+!  ok 2 - We should get an error when length is not correct
+  (1 row)
+  
+
+======================================================================
+

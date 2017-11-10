@@ -25,7 +25,7 @@ typedef struct SalesforceId {
     uint32 low; // NNNNN 6 bits * 5 = 30 can fit in 32 bits or 4 bytes
 } SalesforceId;
 
-bool parse_character(uint32* id, uint8 str_x, uint8 start);
+bool parse_character(uint32* id, uint8 str_x, char* str, uint8 start);
 char get_case_sensitive_check_char(char* str);
     
 void parse_salesforce_id(SalesforceId *result, char* str);

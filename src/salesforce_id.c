@@ -21,6 +21,7 @@
 #include "lib/stringinfo.h"
 #include "libpq/pqformat.h"
 
+// Directives from http://www.coranac.com/documents/working-with-bits-and-bitfields/
 #define BIT(n)                  (1ull<<(n) )
 
 #define BIT_SET(y, mask)        ( y |=  (mask) )
@@ -49,7 +50,7 @@ PG_MODULE_MAGIC;
 static char salesforce_id_alphabet[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 static char salesforce_id_extra_alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345";
 
-bool parse_character(uint32* id, uint8 str_x, uint8 start) {  
+bool parse_character(uint32* id, uint8 str_x, char* str, uint8 start) {  
   bool is_upper_case = false;
 
   if ( str_x >= '0' && str_x <= '9' ) {
@@ -64,8 +65,8 @@ bool parse_character(uint32* id, uint8 str_x, uint8 start) {
   }
   else {
 	  ereport(ERROR,
-		  (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-       errmsg("invalid input character \"%c\" for salesforce_id", str_x))
+		  (errcode(ERRCODE_SYNTAX_ERROR),
+       errmsg("invalid input character \"%c\" for salesforce_id %s", str_x, str))
     );
   }
   return is_upper_case;
@@ -76,11 +77,13 @@ void parse_salesforce_id(SalesforceId* result, char* str)
   int i;
   
   int length = strlen(str);
-  if (length != 18) {
-    ereport(ERROR,
-      (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-        errmsg("Invalid salesforce_id, should be 18 characters long, got %d instead", length))
-    );
+  if (length != 15) {
+    if (length != 18) {
+      ereport(ERROR,
+        (errcode(ERRCODE_STRING_DATA_LENGTH_MISMATCH),
+          errmsg("Invalid salesforce_id, should be 18 or 15 characters long, got %d instead", length))
+      );
+    }  
   }
 
   result->high = 0ul;
@@ -93,7 +96,7 @@ void parse_salesforce_id(SalesforceId* result, char* str)
   uint8 case_sensitive_mask = 0;
   int bit = 0;
   for (i=14; i>9; i--) {
-    if (parse_character(&result->low, str[i], bit)) {
+    if (parse_character(&result->low, str[i], str, bit)) {
       case_sensitive_mask = BF_SET(case_sensitive_mask, 1, i-10, 1);      
     }
     bit = bit + 6;
@@ -103,7 +106,7 @@ void parse_salesforce_id(SalesforceId* result, char* str)
   bit = 0;
   case_sensitive_mask = 0;
   for (i=9; i>4; i--) {
-    if (parse_character(&result->high, str[i], bit)) {
+    if (parse_character(&result->high, str[i], str, bit)) {
       case_sensitive_mask = BF_SET(case_sensitive_mask, 1, i-5, 1);      
     }
     bit = bit + 6;
@@ -112,22 +115,25 @@ void parse_salesforce_id(SalesforceId* result, char* str)
   
   bit = 0;
   case_sensitive_mask = 0;  
-  for (i=4;i>0; i--) {
-    if (parse_character(&result->prefix, str[i], bit)) {
+  for (i=4;i>=0; i--) {
+    if (parse_character(&result->prefix, str[i], str, bit)) {
       case_sensitive_mask = BF_SET(case_sensitive_mask, 1, i, 1);      
     }
     bit = bit + 6;
   }
   case_sensitive_check[0] = salesforce_id_extra_alphabet[case_sensitive_mask];
 
-  char suffix[4];
-  memcpy(suffix, &str[15], 4);
-
-  if (strcmp(case_sensitive_check, suffix) != 0) {
-    ereport(ERROR,
-      (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-        errmsg("Salesforce id suffix is used for case sensitive check, it should be \"%s\" got \"%s\" instead", case_sensitive_check, suffix))
-    );
+  // if length is 18, we check the case sensitive suffix
+  if (length == 18) {
+    char suffix[4];
+    memcpy(suffix, &str[15], 4);  
+    
+    if (strcmp(case_sensitive_check, suffix) != 0) {
+      ereport(ERROR,
+        (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+          errmsg("Salesforce id suffix is used for case sensitive check, it should be \"%s\" got \"%s\" instead", case_sensitive_check, suffix))
+      );
+    }
   }
 }
 
@@ -169,8 +175,8 @@ void emit_salesforce_id_buf(char* result, SalesforceId* salesforce_id)
     split[i - 5] = result[i] = salesforce_id_alphabet[BF_GET(salesforce_id->high, bit, 6)];
     bit = bit + 6;
   }
-  result[16] = get_case_sensitive_check_char(split);  
-  
+  result[16] = get_case_sensitive_check_char(split);    
+
   bit = 0;
   for (; i>=0; i--) {
     split[i] = result[i] = salesforce_id_alphabet[BF_GET(salesforce_id->prefix, bit, 6)];
