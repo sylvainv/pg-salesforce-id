@@ -29,6 +29,11 @@ CREATE OR REPLACE FUNCTION salesforce_id_out_text(salesforce_id)
 	AS 'salesforce_id', 'salesforce_id_out_text'
 	LANGUAGE C STRICT IMMUTABLE;
 
+CREATE OR REPLACE FUNCTION gen_random_salesforce_id()
+	RETURNS salesforce_id
+	AS 'salesforce_id', 'gen_random_salesforce_id'
+	LANGUAGE C STRICT IMMUTABLE;
+
 CREATE TYPE salesforce_id (
 	INPUT = salesforce_id_in,
 	OUTPUT = salesforce_id_out,

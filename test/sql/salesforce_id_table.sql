@@ -57,3 +57,15 @@ SELECT throws_ok(
     'duplicate key value violates unique constraint "salesforce_id_test_id_idx"',
     'We should get an error when attempting to insert a unique id'
 );
+
+EXPLAIN (COSTS OFF) SELECT * FROM salesforce_id_test where id = 'AAAAAJJJJJPPPPP555';
+EXPLAIN (COSTS OFF) SELECT * FROM salesforce_id_test where id <>  'AAAAAJJJJJPPPPP555';
+EXPLAIN (COSTS OFF) SELECT * FROM salesforce_id_test where 'AAAAAJJJJJPPPPP555'::salesforce_id > id;
+EXPLAIN (COSTS OFF) SELECT * FROM salesforce_id_test where 'AAAAAJJJJJPPPPP555'::salesforce_id < id;
+
+ANALYZE;
+SET enable_seqscan TO off;
+EXPLAIN (COSTS OFF) SELECT * FROM salesforce_id_test where id = 'AAAAAJJJJJPPPPP555';
+EXPLAIN (COSTS OFF) SELECT * FROM salesforce_id_test where id <>  'AAAAAJJJJJPPPPP555';
+EXPLAIN (COSTS OFF) SELECT * FROM salesforce_id_test where 'AAAAAJJJJJPPPPP555'::salesforce_id > id;
+EXPLAIN (COSTS OFF) SELECT * FROM salesforce_id_test where 'AAAAAJJJJJPPPPP555'::salesforce_id < id;

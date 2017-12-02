@@ -25,7 +25,6 @@ SELECT throws_ok(
     'We should get an error when length is not correct'
 );
 
-
 SELECT throws_ok(
     $$ SELECT 'zzzzzzzzzzzzzzzAAB'::salesforce_id; $$,
     '22P02',

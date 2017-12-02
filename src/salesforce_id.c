@@ -22,14 +22,14 @@
 #include "libpq/pqformat.h"
 
 // Directives from http://www.coranac.com/documents/working-with-bits-and-bitfields/
-#define BIT(n)                  (1ull<<(n) )
+#define BIT(n)                  (1ul<<(n) )
 
 #define BIT_SET(y, mask)        ( y |=  (mask) )
 #define BIT_CLEAR(y, mask)      ( y &= ~(mask) )
 #define BIT_FLIP(y, mask)       ( y ^=  (mask) )
 
 /* Create a bitmask of length len */
-#define BIT_MASK(len) (BIT(len)-1ull)
+#define BIT_MASK(len) (BIT(len)-1ul)
 
 /* Create a bitfield mask of length len starting at bit start */
 #define BF_MASK(start, len) ( BIT_MASK(len)<<(start) )
@@ -43,7 +43,11 @@
 /* Insert a new bitfield value x into y */
 #define BF_SET(y, x, start, len) \
               (y=((y) & (~BF_MASK(start, len))) | BF_PREP(x, start, len))
-      
+
+#define LOW 0
+#define HIGH 1
+#define PREFIX 2
+
 PG_MODULE_MAGIC;
 
 // In ascii order
@@ -86,9 +90,9 @@ void parse_salesforce_id(SalesforceId* result, char* str)
     }  
   }
 
-  result->high = 0ul;
-  result->low = 0ul;  
-  result->prefix = 0ul;
+  (*result)[LOW] = 0ul;  
+  (*result)[HIGH] = 0ul;  
+  (*result)[PREFIX] = 0ul;
 
   char case_sensitive_check[4];
   case_sensitive_check[3] = '\0';
@@ -96,7 +100,7 @@ void parse_salesforce_id(SalesforceId* result, char* str)
   uint8 case_sensitive_mask = 0;
   int bit = 0;
   for (i=14; i>9; i--) {
-    if (parse_character(&result->low, str[i], str, bit)) {
+    if (parse_character(&(*result)[LOW], str[i], str, bit)) {
       case_sensitive_mask = BF_SET(case_sensitive_mask, 1, i-10, 1);      
     }
     bit = bit + 6;
@@ -106,7 +110,7 @@ void parse_salesforce_id(SalesforceId* result, char* str)
   bit = 0;
   case_sensitive_mask = 0;
   for (i=9; i>4; i--) {
-    if (parse_character(&result->high, str[i], str, bit)) {
+    if (parse_character(&(*result)[HIGH], str[i], str, bit)) {
       case_sensitive_mask = BF_SET(case_sensitive_mask, 1, i-5, 1);      
     }
     bit = bit + 6;
@@ -116,7 +120,7 @@ void parse_salesforce_id(SalesforceId* result, char* str)
   bit = 0;
   case_sensitive_mask = 0;  
   for (i=4;i>=0; i--) {
-    if (parse_character(&result->prefix, str[i], str, bit)) {
+    if (parse_character(&(*result)[PREFIX], str[i], str, bit)) {
       case_sensitive_mask = BF_SET(case_sensitive_mask, 1, i, 1);      
     }
     bit = bit + 6;
@@ -165,26 +169,70 @@ void emit_salesforce_id_buf(char* result, SalesforceId* salesforce_id)
   split[5] = '\0';
 
 	for (i=14; i>9; i--) {
-    split[i - 10] = result[i] = salesforce_id_alphabet[BF_GET(salesforce_id->low, bit, 6)];
+    split[i - 10] = result[i] = salesforce_id_alphabet[BF_GET((*salesforce_id)[LOW], bit, 6)];
     bit = bit + 6;
   }
   result[17] = get_case_sensitive_check_char(split);
 
   bit = 0;
   for (; i>4; i--) {
-    split[i - 5] = result[i] = salesforce_id_alphabet[BF_GET(salesforce_id->high, bit, 6)];
+    split[i - 5] = result[i] = salesforce_id_alphabet[BF_GET((*salesforce_id)[HIGH], bit, 6)];
     bit = bit + 6;
   }
   result[16] = get_case_sensitive_check_char(split);    
 
   bit = 0;
   for (; i>=0; i--) {
-    split[i] = result[i] = salesforce_id_alphabet[BF_GET(salesforce_id->prefix, bit, 6)];
+    split[i] = result[i] = salesforce_id_alphabet[BF_GET((*salesforce_id)[PREFIX], bit, 6)];
     bit = bit + 6;
   }
   result[15] = get_case_sensitive_check_char(split);  
   
   result[18] = '\0';
+}
+
+PG_FUNCTION_INFO_V1(salesforce_id_send);
+Datum
+salesforce_id_send(PG_FUNCTION_ARGS)
+{
+    SalesforceId    *result = (SalesforceId *) PG_GETARG_POINTER(0);
+    StringInfoData buf;
+
+    pq_begintypsend(&buf);
+    pq_sendint(&buf, (*result)[LOW], 4);
+    pq_sendint(&buf, (*result)[HIGH], 4);    
+    pq_sendint(&buf, (*result)[PREFIX], 4);
+    PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
+}
+
+PG_FUNCTION_INFO_V1(salesforce_id_recv);
+Datum
+salesforce_id_recv(PG_FUNCTION_ARGS)
+{
+    StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
+    SalesforceId    *result;
+
+    result = (SalesforceId *) palloc(sizeof(SalesforceId));
+    (*result)[LOW] = pq_getmsgint(buf,4);    
+    (*result)[HIGH] = pq_getmsgint(buf,4);
+    (*result)[PREFIX] = pq_getmsgint(buf,4);    
+    PG_RETURN_POINTER(result);
+}
+
+PG_FUNCTION_INFO_V1(gen_random_salesforce_id);
+Datum
+gen_random_salesforce_id(PG_FUNCTION_ARGS)
+{
+  SalesforceId* result = (SalesforceId *) palloc(sizeof(SalesforceId));
+  char * salesforce_id = (char*) malloc(16);
+  for (int i = 0; i < 15; ++i) {
+    salesforce_id[i] = salesforce_id_alphabet[rand() % 61];
+  }
+  salesforce_id[15] = '\0';  
+
+  parse_salesforce_id(result, salesforce_id);
+	PG_FREE_IF_COPY(salesforce_id, 0);
+	PG_RETURN_POINTER(result);
 }
 
 /*
@@ -251,8 +299,9 @@ Datum
 salesforce_id_eq(PG_FUNCTION_ARGS)
 {
 	SalesforceId    *sfid1 = (SalesforceId *) PG_GETARG_POINTER(0);
-	SalesforceId    *sfid2 = (SalesforceId *) PG_GETARG_POINTER(1);	
-  PG_RETURN_BOOL(sfid1->low == sfid2->low && sfid1->high == sfid2->high && sfid1->prefix == sfid2->prefix);
+  SalesforceId    *sfid2 = (SalesforceId *) PG_GETARG_POINTER(1);
+
+  PG_RETURN_BOOL(0 == memcmp(*sfid1, *sfid2, sizeof(SalesforceId)));
 }
 
 PG_FUNCTION_INFO_V1(salesforce_id_ne);
@@ -260,8 +309,8 @@ Datum
 salesforce_id_ne(PG_FUNCTION_ARGS)
 {
 	SalesforceId    *sfid1 = (SalesforceId *) PG_GETARG_POINTER(0);
-	SalesforceId    *sfid2 = (SalesforceId *) PG_GETARG_POINTER(1);	
-  PG_RETURN_BOOL(sfid1->low != sfid2->low || sfid1->high != sfid2->high || sfid1->prefix != sfid2->prefix);
+	SalesforceId    *sfid2 = (SalesforceId *) PG_GETARG_POINTER(1);
+  PG_RETURN_BOOL(0 != memcmp(*sfid1, *sfid2, sizeof(SalesforceId)));
 }
 
 PG_FUNCTION_INFO_V1(salesforce_id_le);
@@ -271,14 +320,14 @@ salesforce_id_le(PG_FUNCTION_ARGS)
 	SalesforceId    *sfid1 = (SalesforceId *) PG_GETARG_POINTER(0);
   SalesforceId    *sfid2 = (SalesforceId *) PG_GETARG_POINTER(1);	
   
-  if (sfid1->prefix < sfid2->prefix) {
+  if (sfid1[PREFIX] < sfid2[PREFIX]) {
     PG_RETURN_BOOL(true);
   }
-  else if (sfid1->high < sfid2->high) {
+  else if (sfid1[HIGH] < sfid2[HIGH]) {
     PG_RETURN_BOOL(true);
   }
   else {
-    PG_RETURN_BOOL(sfid1->low <= sfid2->low);
+    PG_RETURN_BOOL(sfid1[LOW] <= sfid2[LOW]);
   }
 }
 
@@ -289,14 +338,14 @@ salesforce_id_lt(PG_FUNCTION_ARGS)
 	SalesforceId    *sfid1 = (SalesforceId *) PG_GETARG_POINTER(0);
   SalesforceId    *sfid2 = (SalesforceId *) PG_GETARG_POINTER(1);	
   
-  if (sfid1->prefix < sfid2->prefix) {
+  if (sfid1[PREFIX] < sfid2[PREFIX]) {
     PG_RETURN_BOOL(true);
   }
-  else if (sfid1->high < sfid2->high) {
+  else if (sfid1[HIGH] < sfid2[HIGH]) {
     PG_RETURN_BOOL(true);
   }
   else {
-    PG_RETURN_BOOL(sfid1->low < sfid2->low);
+    PG_RETURN_BOOL(sfid1[LOW] < sfid2[LOW]);
   }
 }
 
@@ -307,14 +356,14 @@ salesforce_id_ge(PG_FUNCTION_ARGS)
 	SalesforceId    *sfid1 = (SalesforceId *) PG_GETARG_POINTER(0);
   SalesforceId    *sfid2 = (SalesforceId *) PG_GETARG_POINTER(1);	
 
-  if (sfid1->prefix > sfid2->prefix) {
+  if (sfid1[PREFIX] > sfid2[PREFIX]) {
     PG_RETURN_BOOL(true);
   }
-  else if (sfid1->high > sfid2->high) {
+  else if (sfid1[HIGH] > sfid2[HIGH]) {
     PG_RETURN_BOOL(true);
   }
   else {
-    PG_RETURN_BOOL(sfid1->low >= sfid2->low);
+    PG_RETURN_BOOL(sfid1[LOW] >= sfid2[LOW]);
   }
 }
 
@@ -325,41 +374,44 @@ salesforce_id_gt(PG_FUNCTION_ARGS)
 	SalesforceId    *sfid1 = (SalesforceId *) PG_GETARG_POINTER(0);
   SalesforceId    *sfid2 = (SalesforceId *) PG_GETARG_POINTER(1);	
   
-  if (sfid1->prefix > sfid2->prefix) {
+  if (sfid1[PREFIX] > sfid2[PREFIX]) {
     PG_RETURN_BOOL(true);
   }
-  else if (sfid1->high > sfid2->high) {
+  else if (sfid1[HIGH] > sfid2[HIGH]) {
     PG_RETURN_BOOL(true);
   }
   else {
-    PG_RETURN_BOOL(sfid1->low > sfid2->low);
+    PG_RETURN_BOOL(sfid1[LOW] > sfid2[LOW]);
   }
 }
 
 PG_FUNCTION_INFO_V1(btcmp_salesforce_id);
 Datum
 btcmp_salesforce_id (PG_FUNCTION_ARGS){
+  ereport(DEBUG1,
+    (errmsg("-> btcmp_salesforce_id"))
+  );
 	SalesforceId    *sfid1 = (SalesforceId *) PG_GETARG_POINTER(0);
 	SalesforceId    *sfid2 = (SalesforceId *) PG_GETARG_POINTER(1);
 
-	if (sfid1->prefix > sfid2->prefix) {
+	if (sfid1[PREFIX] > sfid2[PREFIX]) {
     PG_RETURN_INT32(1);
   }
-	else if (sfid1->prefix < sfid2->prefix) {
+	else if (sfid1[PREFIX] < sfid2[PREFIX]) {
     PG_RETURN_INT32(-1);
 	}
 	else {
-    if (sfid1->high > sfid2->high) {
+    if (sfid1[HIGH] > sfid2[HIGH]) {
 			PG_RETURN_INT32(1);
 		}
-		else if (sfid1->high < sfid2->high) {
+		else if (sfid1[HIGH] < sfid2[HIGH]) {
 			PG_RETURN_INT32(-1);		
 		}
 		else {
-      if (sfid1->low > sfid2->low) {
+      if (sfid1[LOW] > sfid2[LOW]) {
         PG_RETURN_INT32(1);
       }
-      else if (sfid1->low < sfid2->low) {
+      else if (sfid1[LOW] < sfid2[LOW]) {
         PG_RETURN_INT32(-1);		
       }
       else {
@@ -374,8 +426,8 @@ Datum
 hash_salesforce_id (PG_FUNCTION_ARGS){
   // from https://github.com/postgres/postgres/commit/0052a0243d9c979a06ef273af965508103c456e0#diff-2305bf0a2a0383ad6887e5e4a637460b
   SalesforceId    *sfid = (SalesforceId *) PG_GETARG_POINTER(0);
-  uint32 a = sfid->low;
-  uint32 b = sfid->high;
+  uint32 a = (*sfid)[LOW];
+  uint32 b = (*sfid)[HIGH];
   a ^= b + 0x9e3779b9 + (a << 6) + (a >> 2);
   return a;
 }
