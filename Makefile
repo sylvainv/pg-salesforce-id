@@ -9,7 +9,7 @@ TESTS         = $(wildcard test/sql/*.sql)      # use test/sql/*.sql as testfile
 # dbname
 REGRESS_OPTS  = --inputdir=test         \
                 --load-extension=salesforce_id \
-				--load-extension=pgtap
+                --load-extension=pgtap
 REGRESS       = $(patsubst test/sql/%.sql,%,$(TESTS))
 OBJS 					= $(patsubst %.c,%.o,$(wildcard src/*.c)) # object files
 MODULE_big    = $(EXTENSION)

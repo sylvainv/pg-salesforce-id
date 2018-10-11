@@ -5,7 +5,9 @@ DROP TABLE IF EXISTS salesforce_id_test_sfid;
 CREATE TABLE salesforce_id_test_sfid(id salesforce_id);
 
 DROP TABLE IF EXISTS salesforce_id_test_text;
-CREATE TABLE salesforce_id_test_text(id text);
+CREATE TABLE salesforce_id_test_text(id text COLLATE "C");
+
+SELECT plan(2);
 
 INSERT INTO salesforce_id_test_sfid (id)
   VALUES
@@ -25,4 +27,9 @@ INSERT INTO salesforce_id_test_text (id)
     ('AAAAAJJJJJPPPPP555')
 ;
 
-SELECT is(pg_table_size('salesforce_id_test_sfid') > pg_table_size('salesforce_id_test_text'), TRUE, 'We actually save space with our Salesforce Id type');
+SELECT is(pg_table_size('salesforce_id_test_sfid') < pg_table_size('salesforce_id_test_text'), TRUE, 'We actually save space with our Salesforce Id type');
+
+INSERT INTO salesforce_id_test_sfid (id) SELECT gen_random_salesforce_id() from generate_series(1, 100000);
+INSERT INTO salesforce_id_test_text (id) SELECT gen_random_salesforce_id()::text from generate_series(1, 100000);
+
+SELECT is(pg_table_size('salesforce_id_test_sfid') < pg_table_size('salesforce_id_test_text'), TRUE, 'We actually save space with our Salesforce Id type');

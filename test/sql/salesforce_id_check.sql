@@ -31,4 +31,3 @@ SELECT throws_ok(
     'Salesforce id suffix is used for case sensitive check, it should be "AAA" got "AAB" instead',
     'We should get an error when length is not correct'
 );
-
