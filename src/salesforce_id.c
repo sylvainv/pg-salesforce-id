@@ -47,6 +47,12 @@
 #define BF_SET(y, x, start, len) \
               (y=((y) & (~BF_MASK(start, len))) | BF_PREP(x, start, len))
 
+#if (PG_VERSION_NUM >= 110000)
+#define PG_SENDINT32(buf, x) pq_sendint32(buf, x) 
+#else
+#define PG_SENDINT32(buf, x) pq_sendint(buf, x, 4) 
+#endif
+                
 #define LOW 0
 #define HIGH 1
 #define PREFIX 2
@@ -213,9 +219,9 @@ salesforce_id_send(PG_FUNCTION_ARGS)
     StringInfoData buf;
 
     pq_begintypsend(&buf);
-    pq_sendint(&buf, (*result)[LOW], 4);
-    pq_sendint(&buf, (*result)[HIGH], 4);
-    pq_sendint(&buf, (*result)[PREFIX], 4);
+    PG_SENDINT32(&buf, (*result)[LOW]);
+    PG_SENDINT32(&buf, (*result)[HIGH]);
+    PG_SENDINT32(&buf, (*result)[PREFIX]);
     PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 

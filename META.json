@@ -1,7 +1,7 @@
 {
    "name": "salesforce_id",
    "abstract": "A more efficient way to represent a Salesforce ID than a string",
-   "version": "0.1.0",
+   "version": "0.1.1",
    "maintainer": "Sylvain Verly <sylvain.verly@gmail.com>",
    "license": "postgresql",
    "meta-spec": {
@@ -13,7 +13,7 @@
          "abstract": "A more efficient way to represent a Salesforce ID than a string",
          "file": "salesforce_id--1.0.sql",
          "docfile": "README.md",
-         "version": "0.1.2"
+         "version": "0.1.1"
       }
    },
    "resources": {
@@ -21,7 +21,6 @@
          "web": "https://github.com/sylvainv/pg-salesforce-id/issues/"
       },
       "repository": {
-        "url":  "git@github.com:sylvainv/pg-salesforce-id.git",
         "web":  "https://github.com/sylvainv/pg-salesforce-id",
         "type": "git"
       }
